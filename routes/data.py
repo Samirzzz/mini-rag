@@ -1,4 +1,4 @@
-from fastapi import FastAPI,APIRouter,UploadFile,Depends
+from fastapi import FastAPI,APIRouter,UploadFile,Depends,Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 import os 
@@ -6,16 +6,23 @@ from helpers.config import get_settings,Settings
 from controllers import DataController,ProjectController,ProcessController
 import aiofiles
 from .schemas.data import ProcessRequest
+from models.ProjectModel import ProjectModel
 data_router=APIRouter()
 
 @data_router.post("/upload/{project_id}")
-async def upload_data(project_id:str,file:UploadFile,
+async def upload_data(request:Request,project_id:str,file:UploadFile,
                       app_settings:Settings=Depends(get_settings)):
+    
+    project_model=ProjectModel(
+        db_client=request.app.db_client
+    )
+    project= await project_model.get_project_or_create_one(project_id=project_id)
     is_valid=DataController().validate_uploaded_file(file=file)
     if not is_valid:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message":"invalid file"}
+            content={"message":"invalid file",
+                     "project_id":str(project._id)}
         )
     
     project_dir_path=ProjectController().get_project_path(project_id=project_id)
